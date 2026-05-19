@@ -398,6 +398,7 @@ async function tryLogin() {
 document.getElementById('panel-delete-btn').style.display = code === 'ADMIN2026' ? 'block' : 'none';
     sessionStorage.setItem(FAMILY_CODE_KEY, code);
     people = res.people||[]; relations = res.relations||[];
+    document.getElementById('panel-delete-btn').style.display = familyCode === 'ADMIN2026' ? 'block' : 'none';
     const ls = document.getElementById('login-screen');
     ls.style.transition='opacity 0.4s'; ls.style.opacity='0';
     setTimeout(()=>ls.style.display='none', 400);
