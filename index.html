@@ -330,6 +330,7 @@
     <button class="btn btn-ghost" id="toggle-sidebar-btn">☰</button>
     <button class="btn btn-ghost" id="sync-btn" title="Sincronizar con la nube">☁ Sync</button>
     <button class="btn btn-gold" id="add-person-btn">+ Agregar</button>
+    <button class="btn btn-ghost" id="logout-btn" title="Cerrar sesión">🔒 Salir</button>
   </div>
 </header>
 
@@ -942,6 +943,12 @@ function initApp() {
     }
   })();
 }
+  document.getElementById('logout-btn').addEventListener('click', () => {
+  if (confirm('¿Cerrar sesión? Se te pedirá el código al volver a entrar.')) {
+    sessionStorage.clear();
+    location.reload();
+  }
+});
 </script>
 </body>
 </html>
