@@ -535,13 +535,12 @@ async function tryLogin() {
 //  API — Google Apps Script
 // ══════════════════════════════════════════════════════════
 async function api(body) {
-  const url = `${SCRIPT_URL}?action=${body.action}&code=${encodeURIComponent(body.code || familyCode)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    redirect: 'follow',
+  const params = new URLSearchParams();
+  Object.entries(body).forEach(([k, v]) => {
+    params.append(k, typeof v === 'object' ? JSON.stringify(v) : v);
   });
+  const url = `${SCRIPT_URL}?${params.toString()}`;
+  const res = await fetch(url, { redirect: 'follow' });
   return res.json();
 }
 
