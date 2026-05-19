@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Árbol Genealógico Familiar</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ══ TEMA CLARO ══ */
+  :root, [data-theme="light"] {
+    --bg:#f5f0e8; --surface:#ffffff; --surface2:#f0ebe0;
+    --border:#e0d8cc; --border-light:#ccc4b4;
+    --gold:#a0762a; --gold-light:#7a5a1e; --gold-dim:rgba(160,118,42,0.12);
+    --text:#2a2318; --text-muted:#7a6e5e; --text-dim:#b0a898;
+    --alive:#2d7a48; --deceased:#8a6a5a; --red:#b04030;
+    --radius:12px; --shadow:0 4px 20px rgba(0,0,0,0.08);
+    --header-bg:rgba(245,240,232,0.95);
+    --canvas-bg:#ede8dc; --grid:rgba(0,0,0,0.04);
+  }
+  /* ══ TEMA OSCURO ══ */
+  [data-theme="dark"] {
+    --bg:#0f0e0c; --surface:#1a1916; --surface2:#242220;
+    --border:#2e2c28; --border-light:#3d3a34;
+    --gold:#c9a84c; --gold-light:#e8c97a; --gold-dim:rgba(201,168,76,0.15);
+    --text:#e8e2d5; --text-muted:#8a8070; --text-dim:#5a5448;
+    --alive:#5a9a6a; --deceased:#8a6a5a; --red:#c05a4a;
+    --shadow:0 8px 32px rgba(0,0,0,0.5);
+    --header-bg:rgba(15,14,12,0.92);
+    --canvas-bg:#0f0e0c; --grid:rgba(255,255,255,0.015);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;transition:background 0.3s,color 0.3s;}
+
+  /* LOGIN */
+  #login-screen{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:48px;width:400px;max-width:95vw;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,0.1);}
+  .login-tree-icon{font-size:60px;margin-bottom:16px;display:block;animation:float 3s ease-in-out infinite;}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  .login-title{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:400;color:var(--gold);margin-bottom:4px;}
+  .login-subtitle{font-size:13px;color:var(--text-muted);margin-bottom:28px;}
+  .login-input{width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:14px 16px;border-radius:10px;font-size:16px;outline:none;font-family:'DM Sans',sans-serif;letter-spacing:0.2em;text-align:center;transition:border-color 0.2s;margin-bottom:12px;}
+  .login-input:focus{border-color:var(--gold);}
+  .login-input::placeholder{letter-spacing:0.05em;color:var(--text-dim);}
+  .login-btn{width:100%;padding:14px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+  .login-btn:hover{opacity:0.88;transform:translateY(-1px);}
+  .login-error{color:var(--red);font-size:13px;margin-top:10px;opacity:0;transition:opacity 0.2s;}
+  .login-error.show{opacity:1;}
+  .login-hint{font-size:11px;color:var(--text-dim);margin-top:20px;line-height:1.6;}
+
+  /* THEME TOGGLE */
+  .theme-toggle{width:40px;height:22px;background:var(--border);border-radius:11px;position:relative;cursor:pointer;transition:background 0.3s;border:none;flex-shrink:0;}
+  .theme-toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--gold);transition:transform 0.3s;}
+  [data-theme="dark"] .theme-toggle::after{transform:translateX(18px);}
+
+  /* SYNC */
+  #sync-bar{position:fixed;bottom:0;left:0;right:0;z-index:200;height:3px;background:var(--gold);transform:scaleX(0);transform-origin:left;transition:transform 0.3s,opacity 0.5s;opacity:0;}
+  #sync-bar.syncing{transform:scaleX(1);opacity:1;}
+  #sync-bar.done{transform:scaleX(1);opacity:0;}
+  #sync-status{position:fixed;bottom:16px;right:80px;z-index:200;font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:6px;}
+  .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim);transition:background 0.3s;}
+  .sync-dot.ok{background:var(--alive);}
+  .sync-dot.saving{background:var(--gold);animation:pulse 0.8s infinite;}
+  .sync-dot.error{background:var(--red);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  /* HEADER */
+  header{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--header-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 20px;height:60px;display:flex;align-items:center;gap:12px;transition:background 0.3s;}
+  .header-brand{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:var(--gold);letter-spacing:0.04em;flex:1;}
+  .header-brand span{font-style:italic;}
+  .header-actions{display:flex;gap:8px;align-items:center;}
+  .btn{padding:7px 14px;border-radius:8px;border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+  .btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border);}
+  .btn-ghost:hover{background:var(--surface2);color:var(--text);}
+  .btn-gold{background:var(--gold);color:#fff;font-weight:600;}
+  .btn-gold:hover{opacity:0.88;transform:translateY(-1px);}
+  .btn-danger{background:rgba(176,64,48,0.1);color:var(--red);border:1px solid rgba(176,64,48,0.25);}
+  .btn-danger:hover{background:rgba(176,64,48,0.2);}
+
+  .search-wrap{position:relative;}
+  .search-wrap input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px 7px 32px;border-radius:8px;font-size:13px;width:170px;outline:none;font-family:'DM Sans',sans-serif;transition:border-color 0.2s,width 0.3s;}
+  .search-wrap input:focus{border-color:var(--gold);width:210px;}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px;pointer-events:none;}
+  #search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);z-index:200;display:none;}
+  .search-result-item{padding:10px 14px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;transition:background 0.15s;}
+  .search-result-item:hover{background:var(--surface2);}
+
+  /* MAIN */
+  main{padding-top:60px;display:flex;height:100vh;}
+  #sidebar{width:280px;min-width:280px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;transition:width 0.3s,min-width 0.3s;display:flex;flex-direction:column;}
+  #sidebar.collapsed{width:0;min-width:0;overflow:hidden;}
+  .sidebar-section{padding:16px 18px;border-bottom:1px solid var(--border);}
+  .sidebar-label{font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:10px;}
+  .member-list-item{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer;transition:background 0.15s;}
+  .member-list-item:hover{background:var(--surface2);}
+  .member-list-item.active{background:var(--gold-dim);}
+  .mli-avatar{width:34px;height:34px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;}
+  .mli-avatar img{width:100%;height:100%;object-fit:cover;}
+  .mli-info{flex:1;min-width:0;}
+  .mli-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mli-years{font-size:11px;color:var(--text-muted);}
+  .mli-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .mli-dot.alive{background:var(--alive);}
+  .mli-dot.deceased{background:var(--deceased);}
+
+  /* CANVAS */
+  #canvas-wrap{flex:1;position:relative;overflow:hidden;background:var(--canvas-bg);}
+  #canvas-wrap::before{content:'';position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+  #tree-canvas{position:absolute;top:0;left:0;transform-origin:0 0;cursor:grab;user-select:none;}
+  #tree-canvas.grabbing{cursor:grabbing;}
+  #connections-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;}
+  .conn-line{fill:none;stroke:var(--border-light);stroke-width:1.5;}
+  .conn-partner{stroke:var(--gold);stroke-width:1.5;stroke-dasharray:5 3;opacity:0.7;}
+
+  /* NODES */
+  .person-node{position:absolute;width:152px;cursor:pointer;transition:transform 0.2s;}
+  .person-node:hover{transform:translateY(-4px);z-index:10;}
+  .person-node.highlighted .pnode-card{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-dim),var(--shadow);}
+  .pnode-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);}
+  .pnode-photo{width:100%;height:112px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:36px;overflow:hidden;}
+  .pnode-photo img{width:100%;height:100%;object-fit:cover;}
+  .pnode-body{padding:10px 10px 9px;}
+  .pnode-name{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;line-height:1.2;margin-bottom:2px;}
+  .pnode-years{font-size:11px;color:var(--text-muted);}
+  .pnode-tag{display:inline-block;margin-top:5px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;}
+  .pnode-tag.alive{background:rgba(45,122,72,0.12);color:var(--alive);}
+  .pnode-tag.deceased{background:rgba(138,106,90,0.15);color:var(--deceased);}
+
+  .add-relative-btn{position:absolute;width:26px;height:26px;background:var(--surface);border:1.5px solid var(--border);color:var(--text-muted);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:all 0.2s;opacity:0;box-shadow:var(--shadow);}
+  .person-node:hover .add-relative-btn{opacity:1;}
+  .add-relative-btn:hover{background:var(--gold);color:#fff;border-color:var(--gold);}
+  .add-parent-btn{top:-34px;left:50%;transform:translateX(-50%);}
+  .add-child-btn{bottom:-34px;left:50%;transform:translateX(-50%);}
+  .add-partner-btn{top:40px;right:-34px;}
+
+  .zoom-controls{position:absolute;bottom:24px;right:24px;display:flex;flex-direction:column;gap:4px;z-index:50;}
+  .zoom-btn{width:36px;height:36px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;box-shadow:var(--shadow);}
+  .zoom-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .view-toggle{position:absolute;top:16px;left:16px;z-index:50;display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:4px;box-shadow:var(--shadow);}
+  .vt-btn{padding:5px 12px;border-radius:6px;border:none;background:transparent;color:var(--text-muted);font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+  .vt-btn.active{background:var(--gold-dim);color:var(--gold);}
+
+  /* PANEL */
+  #detail-panel{width:360px;min-width:360px;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;display:none;flex-direction:column;animation:slideIn 0.25s ease;}
+  #detail-panel.open{display:flex;}
+  @keyframes slideIn{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
+  .panel-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;}
+  .panel-close{margin-left:auto;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;transition:all 0.15s;}
+  .panel-close:hover{background:var(--surface2);}
+  .panel-photo-wrap{padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--gold-dim) 0%,transparent 100%);}
+  .panel-avatar{width:100px;height:100px;border-radius:50%;border:3px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;transition:border-color 0.2s;overflow:hidden;position:relative;}
+  .panel-avatar:hover{border-color:var(--gold);}
+  .panel-avatar img{width:100%;height:100%;object-fit:cover;}
+  .panel-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;text-align:center;line-height:1.2;}
+  .panel-years-badge{font-size:13px;color:var(--text-muted);background:var(--surface2);padding:3px 12px;border-radius:20px;border:1px solid var(--border);}
+  .panel-body{padding:20px;display:flex;flex-direction:column;gap:16px;}
+  .field-group{display:flex;flex-direction:column;gap:5px;}
+  .field-label{font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);}
+  .field-input,.field-textarea,.field-select{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;outline:none;font-family:'DM Sans',sans-serif;transition:border-color 0.2s;width:100%;}
+  .field-input:focus,.field-textarea:focus,.field-select:focus{border-color:var(--gold);}
+  .field-select option{background:var(--surface);}
+  .field-textarea{resize:vertical;min-height:80px;line-height:1.5;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .tags-wrap{display:flex;flex-wrap:wrap;gap:6px;}
+  .tag-chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--surface2);border:1.5px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all 0.15s;}
+  .tag-chip.active{background:var(--gold-dim);border-color:var(--gold);color:var(--gold);}
+  .quote-field{position:relative;}
+  .quote-field .field-textarea{padding-left:28px;font-style:italic;}
+  .quote-field::before{content:'"';position:absolute;left:10px;top:8px;color:var(--gold);font-size:22px;font-family:'Cormorant Garamond',serif;pointer-events:none;}
+  .relations-list{display:flex;flex-direction:column;gap:6px;}
+  .relation-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:8px;font-size:12px;}
+  .relation-item img{width:24px;height:24px;border-radius:50%;object-fit:cover;}
+  .relation-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--gold-dim);color:var(--gold);margin-left:auto;font-weight:600;}
+  .panel-actions{padding:16px 20px;border-top:1px solid var(--border);display:flex;gap:8px;}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.35);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+  .modal-overlay.open{opacity:1;pointer-events:all;}
+  .modal{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.15);transform:scale(0.95) translateY(10px);transition:transform 0.2s;}
+  .modal-overlay.open .modal{transform:scale(1) translateY(0);}
+  .modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;}
+  .modal-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;flex:1;}
+  .modal-body{padding:24px;display:flex;flex-direction:column;gap:16px;}
+  .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+  .photo-upload-area{border:2px dashed var(--border);border-radius:var(--radius);height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;background:var(--surface2);}
+  .photo-upload-area:hover{border-color:var(--gold);background:var(--gold-dim);}
+  .photo-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .photo-upload-area .pu-icon{font-size:28px;}
+  .photo-upload-area .pu-text{font-size:13px;color:var(--text-muted);}
+  .photo-preview{width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);display:none;margin:0 auto;}
+
+  /* LIST */
+  #list-view{display:none;position:absolute;inset:0;overflow-y:auto;padding:24px;}
+  #list-view.active{display:block;}
+  .list-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;max-width:1200px;margin:0 auto;}
+  .list-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:all 0.2s;box-shadow:var(--shadow);}
+  .list-card:hover{border-color:var(--gold);transform:translateY(-3px);}
+  .list-card-img{width:100%;height:140px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden;}
+  .list-card-img img{width:100%;height:100%;object-fit:cover;}
+  .list-card-body{padding:12px;}
+  .list-card-name{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;}
+  .list-card-years{font-size:11px;color:var(--text-muted);margin-top:2px;}
+
+  #toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:12px 20px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);z-index:1000;opacity:0;transition:all 0.3s;pointer-events:none;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  ::-webkit-scrollbar{width:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <span class="login-tree-icon">🌳</span>
+    <div class="login-title">Árbol Familiar</div>
+    <div class="login-subtitle">Ingresa el código para acceder y editar</div>
+    <input class="login-input" id="login-code" type="password" placeholder="CÓDIGO FAMILIAR" autocomplete="off">
+    <button class="login-btn" id="login-btn">Entrar al árbol →</button>
+    <div class="login-error" id="login-error">Código incorrecto. Intenta de nuevo.</div>
+    <div class="login-hint">Solo los miembros de la familia con el código<br>pueden ver y editar este árbol.</div>
+  </div>
+</div>
+
+<header>
+  <div class="header-brand">Árbol <span>Genealógico</span></div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Buscar…">
+    <div id="search-results"></div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost" id="toggle-sidebar-btn">☰</button>
+    <span id="theme-emoji" style="font-size:16px;cursor:default;">☀️</span>
+    <button class="theme-toggle" id="theme-toggle" title="Cambiar tema claro/oscuro"></button>
+    <button class="btn btn-ghost" id="sync-btn">☁ Sync</button>
+    <button class="btn btn-gold" id="add-person-btn">+ Agregar</button>
+    <button class="btn btn-ghost" id="logout-btn">🔒 Salir</button>
+  </div>
+</header>
+
+<main>
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Miembros de la familia</div>
+      <div id="member-list"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Estadísticas</div>
+      <div id="stats" style="font-size:13px;color:var(--text-muted);line-height:2.2;"></div>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <div class="view-toggle">
+      <button class="vt-btn active" id="vt-tree">🌳 Árbol</button>
+      <button class="vt-btn" id="vt-list">⊞ Galería</button>
+    </div>
+    <div id="tree-canvas"><svg id="connections-svg" width="6000" height="6000"></svg></div>
+    <div id="list-view"><div class="list-grid" id="list-grid"></div></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoom-in">+</button>
+      <button class="zoom-btn" id="zoom-reset">⌂</button>
+      <button class="zoom-btn" id="zoom-out">−</button>
+    </div>
+  </div>
+
+  <div id="detail-panel">
+    <div class="panel-header">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);">Perfil</div>
+      <button class="panel-close" id="panel-close">✕</button>
+    </div>
+    <div class="panel-photo-wrap">
+      <div class="panel-avatar" id="panel-avatar-wrap">
+        <span id="panel-avatar-emoji">👤</span>
+        <img id="panel-avatar-img" style="display:none;width:100%;height:100%;object-fit:cover;">
+        <input type="file" id="panel-photo-input" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+      </div>
+      <div class="panel-name" id="panel-name"></div>
+      <div class="panel-years-badge" id="panel-years"></div>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-actions">
+      <button class="btn btn-gold" id="panel-save-btn" style="flex:1;">💾 Guardar cambios</button>
+      <button class="btn btn-danger" id="panel-delete-btn">🗑</button>
+    </div>
+  </div>
+</main>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Nueva persona</div>
+      <button class="panel-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <div class="field-label">Foto</div>
+        <div class="photo-upload-area" id="photo-upload-area">
+          <input type="file" id="modal-photo-input" accept="image/*">
+          <div class="pu-icon">📷</div>
+          <div class="pu-text">Click o arrastra una foto</div>
+        </div>
+        <img class="photo-preview" id="modal-photo-preview">
+      </div>
+      <div class="field-group"><div class="field-label">Nombre completo</div><input class="field-input" id="m-name" type="text" placeholder="Ej. María García López"></div>
+      <div class="field-row">
+        <div class="field-group"><div class="field-label">Año de nacimiento</div><input class="field-input" id="m-birth" type="number" placeholder="1950"></div>
+        <div class="field-group"><div class="field-label">Año de defunción</div><input class="field-input" id="m-death" type="number" placeholder="Vacío si vive"></div>
+      </div>
+      <div class="field-row">
+        <div class="field-group"><div class="field-label">Lugar de nacimiento</div><input class="field-input" id="m-place" type="text" placeholder="Ciudad, País"></div>
+        <div class="field-group"><div class="field-label">Género</div>
+          <select class="field-select" id="m-gender">
+            <option value="">— Seleccionar —</option>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+            <option value="O">Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group"><div class="field-label">Ocupación</div><input class="field-input" id="m-occupation" type="text" placeholder="Médico, Artesano…"></div>
+      <div class="field-group"><div class="field-label">Biografía</div><textarea class="field-textarea" id="m-bio" style="min-height:80px;"></textarea></div>
+      <div class="field-group"><div class="field-label">Frase memorable</div><div class="quote-field"><textarea class="field-textarea" id="m-quote" style="padding-left:28px;min-height:56px;"></textarea></div></div>
+      <div class="field-group">
+        <div class="field-label">Etiquetas</div>
+        <div class="tags-wrap" id="modal-tags">
+          <div class="tag-chip" data-tag="Emigrante">🌍 Emigrante</div>
+          <div class="tag-chip" data-tag="Veterano">🎖 Veterano</div>
+          <div class="tag-chip" data-tag="Artista">🎨 Artista</div>
+          <div class="tag-chip" data-tag="Empresario">💼 Empresario</div>
+          <div class="tag-chip" data-tag="Académico">📚 Académico</div>
+          <div class="tag-chip" data-tag="Religioso">✝ Religioso</div>
+          <div class="tag-chip" data-tag="Fundador">⭐ Fundador</div>
+          <div class="tag-chip" data-tag="Deportista">⚽ Deportista</div>
+        </div>
+      </div>
+      <div class="field-group" id="relation-context" style="display:none;">
+        <div class="field-label">Relación con <span id="relation-of-name"></span></div>
+        <select class="field-select" id="m-relation">
+          <option value="child">Hijo/Hija</option>
+          <option value="parent">Padre/Madre</option>
+          <option value="partner">Pareja / Cónyuge</option>
+          <option value="sibling">Hermano/Hermana</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-cancel-btn">Cancelar</button>
+      <button class="btn btn-gold" id="modal-save-btn">Agregar persona</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="sync-bar"></div>
+<div id="sync-status"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">Sin conectar</span></div>
+
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyssKLpjPYZHwypXU_ECYvr0iRGPFDwTlX5TaGSTj9xU9nSd2PRCoXufGkeK06VzzZyDA/exec';
+const FAMILY_CODE_KEY = 'familyTreeCode';
+const THEME_KEY = 'familyTreeTheme';
+
+// ── TEMA ──
+const savedTheme = localStorage.getItem(THEME_KEY) || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme);
+document.getElementById('theme-emoji').textContent = savedTheme === 'light' ? '☀️' : '🌙';
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(THEME_KEY, next);
+  document.getElementById('theme-emoji').textContent = next === 'light' ? '☀️' : '🌙';
+});
+
+// ── STATE ──
+let people=[], relations=[], selectedId=null, addRelativeTo=null, addRelativeType=null;
+let modalPhotoData=null, panelPhotoData=null, familyCode='', syncTimeout=null;
+let zoom=1, panX=80, panY=40, isPanning=false, startX, startY, startPanX, startPanY;
+
+// ── LOGIN ──
+const savedCode = sessionStorage.getItem(FAMILY_CODE_KEY);
+if (savedCode) { familyCode = savedCode; initApp(); }
+document.getElementById('login-btn').addEventListener('click', tryLogin);
+document.getElementById('login-code').addEventListener('keydown', e => { if(e.key==='Enter') tryLogin(); });
+
+async function tryLogin() {
+  const code = document.getElementById('login-code').value.trim();
+  if (!code) return;
+  document.getElementById('login-error').classList.remove('show');
+  setSyncStatus('saving','Verificando…');
+  try {
+    const res = await api({ action:'getData', code });
+    if (!res.ok) throw new Error();
+    familyCode = code;
+    sessionStorage.setItem(FAMILY_CODE_KEY, code);
+    people = res.people||[]; relations = res.relations||[];
+    const ls = document.getElementById('login-screen');
+    ls.style.transition='opacity 0.4s'; ls.style.opacity='0';
+    setTimeout(()=>ls.style.display='none', 400);
+    setSyncStatus('ok','Sincronizado');
+    render(); toast('🌳 Bienvenido al árbol familiar');
+  } catch { document.getElementById('login-error').classList.add('show'); setSyncStatus('error','Error'); }
+}
+
+// ── API ──
+async function api(body) {
+  const p = new URLSearchParams();
+  Object.entries(body).forEach(([k,v]) => p.append(k, typeof v==='object'?JSON.stringify(v):v));
+  const res = await fetch(`${SCRIPT_URL}?${p.toString()}`, { redirect:'follow' });
+  return res.json();
+}
+function scheduleSave() { clearTimeout(syncTimeout); setSyncStatus('saving','Guardando…'); syncTimeout=setTimeout(syncToCloud,2500); }
+async function syncToCloud() {
+  const bar = document.getElementById('sync-bar');
+  bar.classList.add('syncing');
+  try {
+    const res = await api({ action:'saveAll', code:familyCode, people:people.map(p=>({...p,tags:p.tags||[]})), relations });
+    if (!res.ok) throw new Error();
+    setSyncStatus('ok','Guardado ☁'); bar.classList.remove('syncing'); bar.classList.add('done');
+    setTimeout(()=>bar.classList.remove('done'),800);
+  } catch { setSyncStatus('error','Error al guardar'); bar.classList.remove('syncing'); toast('⚠️ Error al guardar'); }
+}
+document.getElementById('sync-btn').addEventListener('click', async()=>{ toast('☁ Sincronizando…'); await syncToCloud(); toast('✅ Sincronizado'); });
+function setSyncStatus(s,l){ document.getElementById('sync-dot').className='sync-dot '+s; document.getElementById('sync-label').textContent=l; }
+
+// ── HELPERS ──
+function uid(){ return 'p'+Date.now()+Math.random().toString(36).slice(2,6); }
+function formatYears(b,d){ if(!b) return ''; return d?`${b} – ${d}`:`n. ${b}`; }
+function getAge(b,d){ if(!b) return ''; return `${(d||new Date().getFullYear())-b} años`; }
+function isDeceased(p){ return !!p.death; }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2400); }
+function getRelativesOf(id){
+  const r=[];
+  relations.forEach(rel=>{
+    if(rel.from===id){const p=people.find(x=>x.id===rel.to);if(p)r.push({person:p,role:rel.type,direction:'to'});}
+    if(rel.to===id){const p=people.find(x=>x.id===rel.from);if(p)r.push({person:p,role:rel.type,direction:'from'});}
+  });
+  return r;
+}
+function roleLabel(type,dir,gender){
+  const f=gender==='F';
+  if(type==='parent') return dir==='to'?(f?'Hija':'Hijo'):(f?'Madre':'Padre');
+  if(type==='partner') return f?'Esposa':'Esposo';
+  if(type==='sibling') return f?'Hermana':'Hermano';
+  return type;
+}
+
+// ── RENDER ──
+function render(){ renderTree(); renderSidebar(); renderListView(); renderStats(); }
+
+function renderTree(){
+  const canvas=document.getElementById('tree-canvas');
+  [...canvas.querySelectorAll('.person-node')].forEach(n=>n.remove());
+  people.forEach(p=>{
+    const dead=isDeceased(p);
+    const node=document.createElement('div');
+    node.className='person-node'+(p.id===selectedId?' highlighted':'');
+    node.dataset.id=p.id; node.style.left=p.x+'px'; node.style.top=p.y+'px';
+    const ph=p.photo?`<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:36px;">${p.gender==='F'?'👩':'👨'}</span>`;
+    node.innerHTML=`
+      <div class="pnode-card">
+        <div class="pnode-photo">${ph}</div>
+        <div class="pnode-body">
+          <div class="pnode-name">${p.name||'—'}</div>
+          <div class="pnode-years">${formatYears(p.birth,p.death)}</div>
+          <span class="pnode-tag ${dead?'deceased':'alive'}">${dead?'† Fallecido':'Vivo'}</span>
+        </div>
+      </div>
+      <button class="add-relative-btn add-parent-btn" data-id="${p.id}" data-rel="parent">↑</button>
+      <button class="add-relative-btn add-child-btn" data-id="${p.id}" data-rel="child">↓</button>
+      <button class="add-relative-btn add-partner-btn" data-id="${p.id}" data-rel="partner">→</button>
+    `;
+    node.addEventListener('click', e=>{ if(!e.target.closest('.add-relative-btn')) openDetailPanel(p.id); });
+    node.querySelectorAll('.add-relative-btn').forEach(btn=>btn.addEventListener('click',e=>{ e.stopPropagation(); openModalForRelative(btn.dataset.id,btn.dataset.rel); }));
+    canvas.appendChild(node);
+  });
+  renderConnections(); applyTransform();
+}
+
+function renderConnections(){
+  const svg=document.getElementById('connections-svg'); svg.innerHTML='';
+  const W=152,H=174;
+  relations.forEach(r=>{
+    const from=people.find(p=>p.id===r.from), to=people.find(p=>p.id===r.to);
+    if(!from||!to) return;
+    if(r.type==='partner'){
+      const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+      l.setAttribute('x1',from.x+W);l.setAttribute('y1',from.y+60);l.setAttribute('x2',to.x);l.setAttribute('y2',to.y+60);
+      l.setAttribute('class','conn-line conn-partner'); svg.appendChild(l);
+    } else if(r.type==='parent'){
+      const x1=from.x+W/2,y1=from.y+H,x2=to.x+W/2,y2=to.y,m=(y1+y2)/2;
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d',`M${x1},${y1} C${x1},${m} ${x2},${m} ${x2},${y2}`);
+      path.setAttribute('class','conn-line'); svg.appendChild(path);
+    } else {
+      const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+      l.setAttribute('x1',from.x+W/2);l.setAttribute('y1',from.y+H/2);l.setAttribute('x2',to.x+W/2);l.setAttribute('y2',to.y+H/2);
+      l.setAttribute('class','conn-line');l.style.strokeDasharray='6 3'; svg.appendChild(l);
+    }
+  });
+}
+
+function applyTransform(){ document.getElementById('tree-canvas').style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`; }
+
+function renderSidebar(){
+  const list=document.getElementById('member-list'); list.innerHTML='';
+  [...people].sort((a,b)=>(a.birth||9999)-(b.birth||9999)).forEach(p=>{
+    const item=document.createElement('div');
+    item.className='member-list-item'+(p.id===selectedId?' active':'');
+    item.innerHTML=`<div class="mli-avatar">${p.photo?`<img src="${p.photo}">`:(p.gender==='F'?'👩':'👨')}</div><div class="mli-info"><div class="mli-name">${p.name||'—'}</div><div class="mli-years">${formatYears(p.birth,p.death)}</div></div><div class="mli-dot ${isDeceased(p)?'deceased':'alive'}"></div>`;
+    item.addEventListener('click',()=>openDetailPanel(p.id));
+    list.appendChild(item);
+  });
+}
+
+function renderListView(){
+  const grid=document.getElementById('list-grid'); grid.innerHTML='';
+  people.forEach(p=>{
+    const card=document.createElement('div'); card.className='list-card';
+    const ph=p.photo?`<img src="${p.photo}">`:`<span>${p.gender==='F'?'👩':'👨'}</span>`;
+    card.innerHTML=`<div class="list-card-img">${ph}</div><div class="list-card-body"><div class="list-card-name">${p.name||'—'}</div><div class="list-card-years">${formatYears(p.birth,p.death)}${p.place?' · '+p.place:''}</div></div>`;
+    card.addEventListener('click',()=>{ switchToTreeView(); openDetailPanel(p.id); });
+    grid.appendChild(card);
+  });
+}
+
+function renderStats(){
+  const alive=people.filter(p=>!p.death).length;
+  document.getElementById('stats').innerHTML=`👨‍👩‍👧‍👦 Total: <strong style="color:var(--text)">${people.length}</strong><br>💚 Vivos: <strong style="color:var(--alive)">${alive}</strong><br>🕯 Fallecidos: <strong style="color:var(--deceased)">${people.length-alive}</strong><br>🔗 Relaciones: <strong style="color:var(--text)">${relations.length}</strong>`;
+}
+
+// ── DETAIL PANEL ──
+function openDetailPanel(id){
+  selectedId=id;
+  const p=people.find(x=>x.id===id); if(!p) return;
+  panelPhotoData=p.photo;
+  document.getElementById('panel-name').textContent=p.name||'—';
+  document.getElementById('panel-years').textContent=formatYears(p.birth,p.death)+(p.birth?` · ${getAge(p.birth,p.death)}`:'');
+  const img=document.getElementById('panel-avatar-img'), emoji=document.getElementById('panel-avatar-emoji');
+  if(p.photo){img.src=p.photo;img.style.display='block';emoji.style.display='none';}
+  else{img.style.display='none';emoji.style.display='';emoji.textContent=p.gender==='F'?'👩':'👨';}
+  const rels=getRelativesOf(id);
+  const relsHTML=rels.length?`<div class="field-group"><div class="field-label">Familiares vinculados</div><div class="relations-list">${rels.map(r=>`<div class="relation-item">${r.person.photo?`<img src="${r.person.photo}">`:`<span style="font-size:16px;">${r.person.gender==='F'?'👩':'👨'}</span>`}<span>${r.person.name}</span><span class="relation-badge">${roleLabel(r.role,r.direction,r.person.gender)}</span></div>`).join('')}</div></div>`:'';
+  const tagsHTML=['Emigrante','Veterano','Artista','Empresario','Académico','Religioso','Fundador','Deportista'].map(t=>`<div class="tag-chip ${(p.tags||[]).includes(t)?'active':''}" data-tag="${t}">${t}</div>`).join('');
+  document.getElementById('panel-body').innerHTML=`
+    <div class="field-row">
+      <div class="field-group"><div class="field-label">Nombre</div><input class="field-input" id="pf-name" value="${p.name||''}"></div>
+      <div class="field-group"><div class="field-label">Género</div><select class="field-select" id="pf-gender"><option value="" ${!p.gender?'selected':''}>—</option><option value="M" ${p.gender==='M'?'selected':''}>Masculino</option><option value="F" ${p.gender==='F'?'selected':''}>Femenino</option><option value="O" ${p.gender==='O'?'selected':''}>Otro</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field-group"><div class="field-label">Año nacimiento</div><input class="field-input" id="pf-birth" type="number" value="${p.birth||''}"></div>
+      <div class="field-group"><div class="field-label">Año defunción</div><input class="field-input" id="pf-death" type="number" placeholder="Vacío si vive" value="${p.death||''}"></div>
+    </div>
+    <div class="field-group"><div class="field-label">Lugar de nacimiento</div><input class="field-input" id="pf-place" value="${p.place||''}"></div>
+    <div class="field-group"><div class="field-label">Ocupación</div><input class="field-input" id="pf-occupation" value="${p.occupation||''}"></div>
+    <div class="field-group"><div class="field-label">Biografía</div><textarea class="field-textarea" id="pf-bio">${p.bio||''}</textarea></div>
+    <div class="field-group"><div class="field-label">Frase memorable</div><div class="quote-field"><textarea class="field-textarea" id="pf-quote" style="padding-left:28px;">${p.quote||''}</textarea></div></div>
+    <div class="field-group"><div class="field-label">Etiquetas</div><div class="tags-wrap" id="panel-tags">${tagsHTML}</div></div>
+    ${relsHTML}
+  `;
+  document.getElementById('panel-tags').querySelectorAll('.tag-chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('active')));
+  document.getElementById('detail-panel').classList.add('open');
+  renderTree(); renderSidebar();
+}
+document.getElementById('panel-close').addEventListener('click',()=>{ document.getElementById('detail-panel').classList.remove('open'); selectedId=null; renderTree(); renderSidebar(); });
+document.getElementById('panel-photo-input').addEventListener('change',e=>{ const f=e.target.files[0];if(!f)return; const r=new FileReader(); r.onload=ev=>{ panelPhotoData=ev.target.result; const i=document.getElementById('panel-avatar-img'); i.src=panelPhotoData;i.style.display='block';document.getElementById('panel-avatar-emoji').style.display='none'; }; r.readAsDataURL(f); });
+document.getElementById('panel-save-btn').addEventListener('click',()=>{
+  const p=people.find(x=>x.id===selectedId);if(!p)return;
+  p.name=document.getElementById('pf-name').value;p.gender=document.getElementById('pf-gender').value;
+  p.birth=parseInt(document.getElementById('pf-birth').value)||null;p.death=parseInt(document.getElementById('pf-death').value)||null;
+  p.place=document.getElementById('pf-place').value;p.occupation=document.getElementById('pf-occupation').value;
+  p.bio=document.getElementById('pf-bio').value;p.quote=document.getElementById('pf-quote').value;
+  p.photo=panelPhotoData;p.tags=[...document.querySelectorAll('#panel-tags .tag-chip.active')].map(c=>c.dataset.tag);
+  render();document.getElementById('panel-name').textContent=p.name||'—';scheduleSave();toast('💾 Guardado — sincronizando…');
+});
+document.getElementById('panel-delete-btn').addEventListener('click',()=>{
+  if(!selectedId||!confirm('¿Eliminar esta persona?'))return;
+  people=people.filter(p=>p.id!==selectedId);relations=relations.filter(r=>r.from!==selectedId&&r.to!==selectedId);
+  document.getElementById('detail-panel').classList.remove('open');selectedId=null;render();scheduleSave();toast('🗑 Eliminado');
+});
+
+// ── MODAL ──
+function openModal(opts={}){
+  addRelativeTo=opts.relativeTo||null;addRelativeType=opts.relType||null;
+  modalPhotoData=null;
+  document.getElementById('modal-photo-preview').style.display='none';document.getElementById('photo-upload-area').style.display='flex';document.getElementById('modal-photo-input').value='';
+  ['m-name','m-birth','m-death','m-place','m-occupation','m-bio','m-quote'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('m-gender').value='';
+  document.querySelectorAll('#modal-tags .tag-chip').forEach(c=>c.classList.remove('active'));
+  const rc=document.getElementById('relation-context');
+  if(addRelativeTo){const rel=people.find(p=>p.id===addRelativeTo);rc.style.display='block';document.getElementById('relation-of-name').textContent=rel?.name||'';document.getElementById('m-relation').value=addRelativeType||'child';}
+  else rc.style.display='none';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function openModalForRelative(pid,relType){openModal({relativeTo:pid,relType});}
+document.getElementById('add-person-btn').addEventListener('click',()=>openModal());
+['modal-close','modal-cancel-btn'].forEach(id=>document.getElementById(id).addEventListener('click',()=>document.getElementById('modal-overlay').classList.remove('open')));
+document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)document.getElementById('modal-overlay').classList.remove('open');});
+document.getElementById('modal-photo-input').addEventListener('change',e=>{ const f=e.target.files[0];if(!f)return; const r=new FileReader(); r.onload=ev=>{modalPhotoData=ev.target.result;const p=document.getElementById('modal-photo-preview');p.src=modalPhotoData;p.style.display='block';document.getElementById('photo-upload-area').style.display='none';}; r.readAsDataURL(f); });
+document.querySelectorAll('#modal-tags .tag-chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('active')));
+document.getElementById('modal-save-btn').addEventListener('click',()=>{
+  const name=document.getElementById('m-name').value.trim();if(!name){toast('⚠️ El nombre es obligatorio');return;}
+  const newP={id:uid(),name,birth:parseInt(document.getElementById('m-birth').value)||null,death:parseInt(document.getElementById('m-death').value)||null,place:document.getElementById('m-place').value,gender:document.getElementById('m-gender').value,occupation:document.getElementById('m-occupation').value,bio:document.getElementById('m-bio').value,quote:document.getElementById('m-quote').value,photo:modalPhotoData,tags:[...document.querySelectorAll('#modal-tags .tag-chip.active')].map(c=>c.dataset.tag),x:150+Math.random()*500,y:150+Math.random()*300};
+  if(addRelativeTo){
+    const anchor=people.find(p=>p.id===addRelativeTo),rel=document.getElementById('m-relation').value;
+    if(anchor){
+      if(rel==='child'){newP.x=anchor.x+20;newP.y=anchor.y+260;relations.push({id:uid(),from:addRelativeTo,to:newP.id,type:'parent',createdAt:new Date().toISOString()});}
+      else if(rel==='parent'){newP.x=anchor.x+20;newP.y=anchor.y-260;relations.push({id:uid(),from:newP.id,to:addRelativeTo,type:'parent',createdAt:new Date().toISOString()});}
+      else if(rel==='partner'){newP.x=anchor.x+220;newP.y=anchor.y;relations.push({id:uid(),from:addRelativeTo,to:newP.id,type:'partner',createdAt:new Date().toISOString()});}
+      else{newP.x=anchor.x+220;newP.y=anchor.y+60;relations.push({id:uid(),from:addRelativeTo,to:newP.id,type:'sibling',createdAt:new Date().toISOString()});}
+    }
+  }
+  people.push(newP);document.getElementById('modal-overlay').classList.remove('open');render();openDetailPanel(newP.id);scheduleSave();toast('✅ Persona agregada');
+});
+
+// ── PAN & ZOOM ──
+const cw=document.getElementById('canvas-wrap');
+cw.addEventListener('mousedown',e=>{ if(e.target.closest('.person-node,.zoom-controls,.view-toggle'))return; isPanning=true;startX=e.clientX;startY=e.clientY;startPanX=panX;startPanY=panY;document.getElementById('tree-canvas').classList.add('grabbing'); });
+window.addEventListener('mousemove',e=>{ if(!isPanning)return; panX=startPanX+(e.clientX-startX);panY=startPanY+(e.clientY-startY);applyTransform(); });
+window.addEventListener('mouseup',()=>{ isPanning=false;document.getElementById('tree-canvas').classList.remove('grabbing'); });
+cw.addEventListener('wheel',e=>{ e.preventDefault();zoom=Math.max(0.3,Math.min(2.5,zoom+(e.deltaY>0?-0.08:0.08)));applyTransform(); },{passive:false});
+document.getElementById('zoom-in').addEventListener('click',()=>{zoom=Math.min(2.5,zoom+0.15);applyTransform();});
+document.getElementById('zoom-out').addEventListener('click',()=>{zoom=Math.max(0.3,zoom-0.15);applyTransform();});
+document.getElementById('zoom-reset').addEventListener('click',()=>{zoom=1;panX=80;panY=40;applyTransform();});
+
+// ── VIEWS ──
+document.getElementById('vt-tree').addEventListener('click',switchToTreeView);
+document.getElementById('vt-list').addEventListener('click',()=>{ document.getElementById('tree-canvas').style.display='none';document.getElementById('list-view').classList.add('active');document.getElementById('vt-tree').classList.remove('active');document.getElementById('vt-list').classList.add('active');renderListView(); });
+function switchToTreeView(){ document.getElementById('tree-canvas').style.display='';document.getElementById('list-view').classList.remove('active');document.getElementById('vt-list').classList.remove('active');document.getElementById('vt-tree').classList.add('active'); }
+
+// ── SEARCH ──
+const si=document.getElementById('search-input'),sr=document.getElementById('search-results');
+si.addEventListener('input',()=>{ const q=si.value.trim().toLowerCase();if(!q){sr.style.display='none';return;} const m=people.filter(p=>(p.name||'').toLowerCase().includes(q));if(!m.length){sr.style.display='none';return;} sr.innerHTML=m.map(p=>`<div class="search-result-item" data-id="${p.id}">${p.photo?`<img src="${p.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">`:`<span style="font-size:20px;">${p.gender==='F'?'👩':'👨'}</span>`}<span>${p.name}</span><span style="margin-left:auto;font-size:11px;color:var(--text-dim);">${formatYears(p.birth,p.death)}</span></div>`).join('');sr.style.display='block'; });
+sr.addEventListener('click',e=>{ const item=e.target.closest('.search-result-item');if(!item)return;si.value='';sr.style.display='none';switchToTreeView();const p=people.find(x=>x.id===item.dataset.id);if(p){panX=-p.x*zoom+cw.offsetWidth/2-75;panY=-p.y*zoom+cw.offsetHeight/2-86;applyTransform();}openDetailPanel(item.dataset.id); });
+document.addEventListener('click',e=>{ if(!sr.contains(e.target)&&e.target!==si)sr.style.display='none'; });
+document.getElementById('toggle-sidebar-btn').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('collapsed'));
+
+// ── LOGOUT ──
+document.getElementById('logout-btn').addEventListener('click',()=>{ if(confirm('¿Cerrar sesión?')){sessionStorage.clear();location.reload();} });
+
+// ── INIT ──
+function initApp(){
+  document.getElementById('login-screen').style.display='none';
+  (async()=>{
+    setSyncStatus('saving','Cargando…');
+    try { const res=await api({action:'getData',code:familyCode}); if(!res.ok)throw new Error(); people=res.people||[];relations=res.relations||[];setSyncStatus('ok','Sincronizado');render();toast('🌳 Árbol cargado'); }
+    catch { setSyncStatus('error','Sin conexión');toast('⚠️ No se pudo conectar.');render(); }
+  })();
+}
+</script>
+</body>
+</html>
